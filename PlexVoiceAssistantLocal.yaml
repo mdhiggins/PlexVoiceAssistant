@@ -1,0 +1,211 @@
+blueprint:
+  name: Plex Voice Assistant
+  description: Control your Plex Clients using Assist
+  domain: automation
+  input:
+    plex_server:
+      name: Plex server
+      description: Plex server device entry
+      selector:
+        device:
+          manufacturer: "Plex"
+          model: "Plex Media Server"
+    token:
+      name: Plex Token
+      description: Active Plex token for authentication purposes
+      default: ""
+    scan_button:
+      name: Scan Clients Button
+      description: Button to scan for available Plex clients
+      selector:
+        entity:
+          domain: button
+          integration: plex
+    use_https:
+      name: Force HTTPS
+      description: May still be required for local connections if Plex server has HTTPS required. May need to disable SSL verification if using local IP addresses
+      default: false
+      selector:
+        boolean:
+
+triggers:
+  - trigger: conversation
+    command:
+      - Play [(movie|show|playlist)] {media} [season {season} [episode {episode}]] [on [player] {player}]
+      - Start playing [(movie|show|playlist)]  {media} [season {season} [episode {episode}]] [on [player] {player}]
+  - trigger: conversation
+    command:
+      - Shuffle [(movie|show|playlist)] {media} [season {season} [episode {episode}]] [on [player] {player}]
+      - Play [(movie|show|playlist)] {media} [season {season} [episode {episode}]] in shuffle mode [on [player] {player}]
+      - Shuffle play [(movie|show|playlist)] {media} [season {season} [episode {episode}]] [on [player] {player}]
+conditions: []
+actions:
+  - variables:
+      plex_server: !input plex_server
+      media_query: "{{ trigger.slots.media | replace('/', '') }}"
+      shuffle: "{{ 'shuffle' in trigger.sentence | lower }}"
+      use_https: !input use_https
+      area: "{{ area_id(trigger.device_id) }}"
+      players: |-
+        {% if trigger.slots.player is defined %}
+          {{ states.media_player
+            | selectattr('entity_id', 'in', integration_entities('plex'))
+            | selectattr('attributes.friendly_name', 'search', trigger.slots.player, ignorecase=True)
+            | selectattr('state', 'ne', 'unavailable')
+            | map(attribute='entity_id')
+            | list }}
+        {% elif area %}
+          {{ states.media_player
+            | selectattr('entity_id', 'in', area_entities(area))
+            | selectattr('entity_id', 'in', integration_entities('plex'))
+            | selectattr('state', 'ne', 'unavailable')
+            | map(attribute='entity_id')
+            | list }}
+        {% else %}
+          []
+        {% endif %}
+      raw_base_url: |-
+        {{ device_attr(plex_server, "configuration_url").rstrip('/web') }}
+      server_host: "{{ raw_base_url | regex_replace('^https?://', '') | regex_replace('[:/].*$', '') }}"
+      local_ip: >-
+        {% if '.plex.direct' in server_host %}
+          {{ server_host.split('.')[0].replace('-', '.') }}
+        {% else %}
+          {{ server_host }}
+        {% endif %}
+      server_protocol: >-
+        {% if use_https %}
+          https
+        {% else %}
+          http
+        {% endif %}
+      server_port: >-
+        {% set port = raw_base_url | regex_findall_index(':(\\d+)', 0) %}
+        {{ port if port else '32400' }}
+      base_url: "{{ server_protocol }}://{{ local_ip }}:{{ server_port }}"
+  - action: rest_command.plex_api_get
+    response_variable: media_response
+    data:
+      base_url: "{{ base_url }}"
+      token: !input token
+      path: "/hubs/search/?query={{ media_query | urlencode }}"
+  - variables:
+      supported_hub_types: >-
+        {% set text = trigger.sentence | lower %}
+        {% if 'movie' in text %}
+          ['movie']
+        {% elif 'show' in text %}
+          ['show']
+        {% elif 'playlist' in text %}
+          ['playlist']
+        {% else %}
+          ['movie', 'show', 'playlist']
+        {% endif %}
+      top_result: >-
+        {{ media_response['content']['MediaContainer']['Hub'] 
+          | selectattr('type', 'in', supported_hub_types) 
+          | selectattr('size', 'gt', 0) 
+          | first
+          | default(none, true) }}
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: >-
+              {{ top_result is none }}
+        sequence:
+          - set_conversation_response: Could not find content for {{ media_query }}
+      - conditions:
+          - condition: and
+            conditions:
+              - condition: template
+                value_template: "{{ players | length == 0 }}"
+              - condition: template
+                value_template: "{{ trigger.slots.player is not none }}"
+        sequence:
+          - set_conversation_response: Plex player {{ trigger.slots.player }} is not available
+          - action: button.press
+            target:
+              entity_id: !input scan_button
+      - conditions:
+          - condition: and
+            conditions:
+              - condition: template
+                value_template: "{{ players | length == 0 }}"
+              - condition: template
+                value_template: "{{ area is not none }}"
+        sequence:
+          - set_conversation_response: >-
+              No plex player available for area {{ area_name(trigger.device_id) }}
+          - action: button.press
+            target:
+              entity_id: !input scan_button
+      - conditions:
+          - condition: and
+            conditions:
+              - condition: template
+                value_template: "{{ players | length == 0 }}"
+        sequence:
+          - set_conversation_response: No plex player provided
+    default:
+      - variables:
+          media_content_type: >-
+            {{ top_result['Metadata'][0]['type'] }}
+          media_content_library: >-
+            {{ top_result['Metadata'][0]['librarySectionTitle'] }}
+          media_content_name: >-
+            {{ top_result['Metadata'][0]['title'] }}
+      - choose:
+          - conditions:
+              - condition: template
+                value_template: "{{ media_content_type == 'movie' }}"
+            sequence:
+              - action: media_player.play_media
+                continue_on_error: true
+                data_template:
+                  entity_id: "{{ players }}"
+                  media_content_id: >-
+                    {
+                      "library_name": "{{ media_content_library }}",
+                      "title": "{{ media_content_name }}"
+                    }
+                  media_content_type: "{{ media_content_type }}"
+          - conditions:
+              - condition: template
+                value_template: "{{ media_content_type == 'show' }}"
+            sequence:
+              - action: media_player.play_media
+                continue_on_error: true
+                data_template:
+                  entity_id: "{{ players }}"
+                  media_content_id: >-
+                    {
+                      "library_name": "{{ media_content_library }}",
+                      "show_name": "{{ media_content_name }}",
+                      {% if trigger.slots.season %}
+                      "season_number": "{{ trigger.slots.season | int }}",
+                      {% endif %}
+                      {% if trigger.slots.episode %}
+                      "episode_number": "{{ trigger.slots.episode | int }}",
+                      {% endif %}
+                      "shuffle": "{{ 1 if shuffle else 0 }}",
+                      "resume": "0"
+                    }
+                  media_content_type: "{{ media_content_type }}"
+          - conditions:
+              - condition: template
+                value_template: "{{ media_content_type == 'playlist' }}"
+            sequence:
+              - action: media_player.play_media
+                continue_on_error: true
+                data_template:
+                  entity_id: "{{ players }}"
+                  media_content_id: >-
+                    {
+                      "playlist_name": "{{ media_content_name }}",
+                      "shuffle": "{{ 1 if shuffle else 0 }}"
+                    }
+                  media_content_type: "{{ media_content_type }}"
+      - set_conversation_response: >-
+          {% if shuffle %}Shuffling{% else %}Playing{% endif %} "{{ media_query }}"
+          {% if players | length > 1 %} on {{ players | length }} players{% endif %}.
+mode: single

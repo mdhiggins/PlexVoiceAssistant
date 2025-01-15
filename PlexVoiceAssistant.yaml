@@ -1,0 +1,279 @@
+blueprint:
+  name: Plex Voice Assistant
+  description: Control your Plex Clients using Assist
+  domain: automation
+  input:
+    plex_server:
+      name: Plex Server
+      description: Plex server device entry
+      selector:
+        device:
+          manufacturer: "Plex"
+          model: "Plex Media Server"
+    token:
+      name: Plex Token
+      description: Active Plex token for authentication purposes
+      default: ""
+    scan_button:
+      name: Scan Clients Button
+      description: Button to scan for available Plex clients
+      selector:
+        entity:
+          domain: button
+          integration: plex
+
+triggers:
+  - trigger: conversation
+    command:
+      - Play [(movie|show|playlist)] {media} [season {season} [episode {episode}]] [on [player] {player}]
+      - Start playing [(movie|show|playlist)] {media} [season {season} [episode {episode}]] [on [player] {player}]
+  - trigger: conversation
+    command:
+      - Shuffle [(movie|show|playlist)] {media} [season {season} [episode {episode}]] [on [player] {player}]
+      - Play [(movie|show|playlist)] {media} [season {season} [episode {episode}]] in shuffle mode [on [player] {player}]
+      - Shuffle play [(movie|show|playlist)] {media} [season {season} [episode {episode}]] [on [player] {player}]
+
+conditions: []
+
+actions:
+  - variables:
+      plex_server: !input plex_server
+      media_query: "{{ trigger.slots.media | replace('/', '') }}"
+      shuffle: "{{ trigger.id }}"
+      area: "{{ area_id(trigger.device_id) }}"
+      base_url: "{{ device_attr(plex_server, 'configuration_url').rstrip('/web') }}"
+      server_protocol: "{{ 'https' if base_url.startswith('https') else 'http' }}"
+      player_entities: >-
+        {% if trigger.slots.player is defined %}
+          {{ states.media_player
+            | selectattr('entity_id', 'in', integration_entities('plex'))
+            | selectattr('attributes.friendly_name', 'search', trigger.slots.player, ignorecase=True)
+            | map(attribute='entity_id')
+            | list }}
+        {% elif area %}
+          {{ states.media_player
+            | selectattr('entity_id', 'in', area_entities(area))
+            | selectattr('entity_id', 'in', integration_entities('plex'))
+            | map(attribute='entity_id')
+            | list }}
+        {% else %}
+          []
+        {% endif %}
+      server_machine_id: >-
+        {{ device_attr(plex_server, 'identifiers') | selectattr(0, 'eq', 'plex') | map(attribute=1) | first }}
+      server_host: "{{ base_url | regex_replace('^https?://', '') | regex_replace('[:/].*$', '') }}"
+      server_playback_address: "{{ server_host }}"
+      server_playback_protocol: >-
+        {% if base_url.startswith('https://') %}
+          https
+        {% else %}
+          http
+        {% endif %}
+      server_port: >-
+        {% set port = base_url | regex_findall_index(':(\\d+)', 0) %}
+        {{ port if port else '32400' }}
+      client_machine_ids: >-
+        {% if player_entities | length > 0 %}
+          {{ player_entities 
+            | map('device_id') 
+            | select() 
+            | map('device_attr', 'identifiers') 
+            | map('selectattr', 0, 'eq', 'plex') 
+            | map('map', attribute=1) 
+            | map('first') 
+            | select() 
+            | unique
+            | list }}
+        {% elif area %}
+          {{ area_devices(area) 
+            | map('device_attr', 'identifiers') 
+            | map('selectattr', 0, 'eq', 'plex') 
+            | map('map', attribute=1) 
+            | map('first') 
+            | select()
+            | unique 
+            | list }}
+        {% else %}
+          []
+        {% endif %}
+
+  - action: rest_command.plex_api_get
+    response_variable: media_response
+    data:
+      base_url: "{{ base_url }}"
+      token: !input token
+      path: "/hubs/search/?query={{ media_query | urlencode }}"
+
+  - action: rest_command.plex_api_get
+    response_variable: resources_response
+    data:
+      base_url: "https://plex.tv"
+      token: !input token
+      path: "/api/v2/resources?includeHttps=1"
+
+  - variables:
+      supported_hub_types: >-
+        {% set text = trigger.sentence | lower %}
+        {% if 'movie' in text %}
+          ['movie']
+        {% elif 'show' in text %}
+          ['show']
+        {% elif 'playlist' in text %}
+          ['playlist']
+        {% else %}
+          ['movie', 'show', 'playlist']
+        {% endif %}
+      top_result: >-
+        {{ media_response['content']['MediaContainer']['Hub']
+          | selectattr('type', 'in', supported_hub_types)
+          | selectattr('size', 'gt', 0)
+          | first
+          | default(none, true) }}
+
+  - variables:
+      client_targets: >-
+        {% set resources = resources_response.get('content', []) %}
+        {% set ns = namespace(targets=[]) %}
+        {% for client_id in client_machine_ids %}
+          {% for device in resources %}
+            {% if device.get('clientIdentifier') == client_id %}
+              {% set connections = device.get('connections', []) %}
+              {% set http_local = connections | selectattr('local') | selectattr('protocol', 'equalto', 'http') | list %}
+              {% set other_local = connections | selectattr('local') | list %}
+              {% set chosen = (http_local | first) or (other_local | first) or (connections | first) %}
+              {% if chosen and chosen.get('uri') %}
+                {% set ns.targets = ns.targets + [ {
+                  'client_id': client_id,
+                  'uri': chosen.get('uri')
+                } ] %}
+              {% endif %}
+            {% endif %}
+          {% endfor %}
+        {% endfor %}
+        {{ ns.targets }}
+      available_clients: "{{ client_targets | length }}"
+
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: >-
+              {{ top_result is none }}
+        sequence:
+          - set_conversation_response: Could not find content for {{ media_query }}
+
+      - conditions:
+          - condition: and
+            conditions:
+              - condition: template
+                value_template: "{{ available_clients == 0 }}"
+              - condition: template
+                value_template: "{{ trigger.slots.player is not none }}"
+        sequence:
+          - set_conversation_response: Plex player {{ trigger.slots.player }} is not available
+          - action: button.press
+            target:
+              entity_id: !input scan_button
+
+      - conditions:
+          - condition: and
+            conditions:
+              - condition: template
+                value_template: "{{ available_clients == 0 }}"
+              - condition: template
+                value_template: "{{ area is not none }}"
+        sequence:
+          - set_conversation_response: >-
+              No plex player available for area {{ area_name(trigger.device_id) }}
+          - action: button.press
+            target:
+              entity_id: !input scan_button
+
+      - conditions:
+          - condition: template
+            value_template: "{{ available_clients == 0 }}"
+        sequence:
+          - set_conversation_response: No plex player provided
+
+    default:
+      - variables:
+          media_type: "{{ top_result['Metadata'][0]['type'] }}"
+          rating_key: "{{ top_result['Metadata'][0]['ratingKey'] }}"
+          item_key: "/library/metadata/{{ rating_key }}"
+
+      - choose:
+          - conditions:
+              - condition: template
+                value_template: "{{ media_type == 'show' and trigger.slots.season is defined }}"
+            sequence:
+              - action: rest_command.plex_api_get
+                response_variable: seasons_response
+                data:
+                  base_url: "{{ base_url }}"
+                  token: !input token
+                  path: "/library/metadata/{{ rating_key }}/children"
+              - variables:
+                  season_key: >-
+                    {{ seasons_response['content']['MediaContainer']['Metadata']
+                      | selectattr('index', 'eq', trigger.slots.season | int)
+                      | map(attribute='ratingKey')
+                      | first | default(rating_key) }}
+              - choose:
+                  - conditions:
+                      - condition: template
+                        value_template: "{{ trigger.slots.episode is defined }}"
+                    sequence:
+                      - action: rest_command.plex_api_get
+                        response_variable: episodes_response
+                        data:
+                          base_url: "{{ base_url }}"
+                          token: !input token
+                          path: "/library/metadata/{{ season_key }}/children"
+                      - variables:
+                          item_key: >-
+                            /library/metadata/{{ episodes_response['content']['MediaContainer']['Metadata']
+                              | selectattr('index', 'eq', trigger.slots.episode | int)
+                              | map(attribute='ratingKey')
+                              | first | default(season_key) }}
+                default:
+                  - variables:
+                      item_key: "/library/metadata/{{ season_key }}"
+
+      - variables:
+          uri: >-
+            {% if media_type != 'playlist' %}
+              server://{{ server_machine_id }}/com.plexapp.plugins.library{{ item_key }}
+            {% endif %}
+          queue_params: >-
+            type=video&shuffle={{ 1 if shuffle else 0 }}&continuous=1{% if media_type != 'playlist' %}&uri={{ uri | urlencode }}{% else %}&playlistID={{ rating_key }}{% endif %}
+
+      - action: rest_command.plex_api_post
+        response_variable: queue_response
+        data:
+          base_url: "{{ base_url }}"
+          token: !input token
+          path: "/playQueues?{{ queue_params }}"
+
+      - variables:
+          playqueue_id: "{{ queue_response['content']['MediaContainer']['playQueueID'] }}"
+          playqueue_selected_id: "{{ queue_response['content']['MediaContainer']['playQueueSelectedMetadataItemID'] }}"
+          playqueue_key: "/library/metadata/{{ playqueue_selected_id }}"
+          command_id: "{{ now().timestamp() | int }}"
+          plex_token: !input token
+
+      - repeat:
+          for_each: "{{ client_targets }}"
+          sequence:
+            - action: rest_command.plex_api_post
+              continue_on_error: true
+              data:
+                base_url: "{{ repeat.item.uri }}"
+                token: !input token
+                target_client_id: "{{ repeat.item.client_id }}"
+                path: >-
+                  /player/playback/playMedia?key={{ playqueue_key | urlencode }}&offset=0&machineIdentifier={{ server_machine_id }}&address={{ server_playback_address }}&port={{ server_port }}&protocol={{ server_playback_protocol }}&providerIdentifier=com.plexapp.plugins.library&containerKey={{ ('/playQueues/' ~ playqueue_id ~ '?window=100&own=1') | urlencode }}&type=video&commandID={{ command_id }}&token={{ plex_token }}
+
+      - set_conversation_response: >-
+          {% if shuffle %}Shuffling{% else %}Playing{% endif %} "{{ media_query }}"
+          {% if available_clients > 1 %} on {{ available_clients }} players{% endif %}.
+
+mode: single

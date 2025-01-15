@@ -1,0 +1,22 @@
+rest_command:
+  plex_api_get:
+    url: "{{ base_url.rstrip('/') }}{{ path }}"
+    method: GET
+    headers:
+      X-Plex-Token: "{{ token }}"
+      X-Plex-Client-Identifier: "ha-plex-voice"
+      X-Plex-Target-Client-Identifier: "{{ target_client_id | default('') }}"
+      Accept: "application/json"
+    content_type: "application/json"
+    # verify_ssl: false
+  plex_api_post:
+    url: "{{ base_url.rstrip('/') }}{{ path }}"
+    method: POST
+    headers:
+      X-Plex-Token: "{{ token }}"
+      X-Plex-Client-Identifier: "ha-plex-voice"
+      X-Plex-Target-Client-Identifier: "{{ target_client_id | default('') }}"
+      Accept: "application/json"
+    content_type: "application/json"
+    timeout: 3
+    # verify_ssl: false

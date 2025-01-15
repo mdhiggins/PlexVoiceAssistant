@@ -1,0 +1,37 @@
+blueprint:
+  name: Plex Client Refresher
+  description: Automatically refresh your plex clients so they will be ready for voice commands
+  domain: automation
+  input:
+    media_players:
+      name: Media Players
+      description: Media players to monitor for state changes which will trigger a refresh of plex clients, use the parent media player (Apple TV, Android TV, Roku etc) not the Plex integration media player
+      selector:
+        entity:
+          domain: media_player
+          multiple: true
+    scan_button:
+      name: Scan Clients Button
+      description: Button to scan for available Plex clients
+      selector:
+        entity:
+          domain: button
+          integration: plex
+    delay:
+      name: Scan Delay
+      description: Delay before triggering the scan
+      selector:
+        duration:
+      default: "00:00:05"
+
+triggers:
+  - entity_id: !input media_players
+    trigger: state
+actions:
+  - delay: !input delay
+  - action: button.press
+    metadata: {}
+    data: {}
+    target:
+      entity_id: !input scan_button
+mode: single
