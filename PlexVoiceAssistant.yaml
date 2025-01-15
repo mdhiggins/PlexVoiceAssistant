@@ -1,200 +1,164 @@
-alias: Plex Voice Assistant
-description: ""
+blueprint:
+  name: Plex Voice Assistant
+  description: Control your Plex Clients using Assist
+  domain: automation
+  input:
+    plex_server:
+      name: Plex server
+      description: Plex server device entry
+      selector:
+        device:
+          manufacturer: "Plex"
+          model: "Plex Media Server"
+    token:
+      name: Plex Token
+      description: Active Plex token for authetnication purposes
+      default: ""
+    scan_button:
+      name: Scan Clients Button
+      description: Button to scan for available Plex clients
+      selector:
+        entity:
+          domain: button
+          integration: plex
+
 triggers:
   - trigger: conversation
     command:
-      - Play {media} [on [player] {player}]
-      - Start playing {media} [on [player] {player}]
+      - Play {media} [season {season} [episode {episode}]] [on [player] {player}]
+      - Start playing {media} [season {season} [episode {episode}]] [on [player] {player}]
   - trigger: conversation
     command:
-      - Shuffle {media} [on [player] {player}]
-      - Play {media} in shuffle mode [on [player] {player}]
-      - Shuffle play {media} [on [player] {player}]
+      - Shuffle {media} [season {season} [episode {episode}]] [on [player] {player}]
+      - Play {media} [season {season} [episode {episode}]] in shuffle mode [on [player] {player}]
+      - Shuffle play {media} [season {season} [episode {episode}]] [on [player] {player}]
 conditions: []
 actions:
   - variables:
+      plex_server: !input plex_server
       media_query: "{{ trigger.slots.media | replace('/', '') }}"
       shuffle: "{{ trigger.id }}"
       area: "{{ area_id(trigger.device_id) }}"
-      player: |-
+      players: |-
         {% if trigger.slots.player %}
           {{ states.media_player
-             | selectattr('entity_id', 'search', '^media_player.plex_')
-             | selectattr('attributes.friendly_name', 'search', trigger.slots.player, ignorecase=True)
-             | map(attribute='entity_id')
-             | list
-             | first }}
+            | selectattr('entity_id', 'in', integration_entities('plex'))
+            | selectattr('attributes.friendly_name', 'search', trigger.slots.player, ignorecase=True)
+            | selectattr("state", "ne", "unavailable")
+            | map(attribute='entity_id')
+            | list }}
+        {% elif area %}
+          {{ states.media_player
+            | selectattr('entity_id', 'in', area_entities(area))
+            | selectattr('entity_id', 'in', integration_entities('plex'))
+            | selectattr("state", "ne", "unavailable")
+            | map(attribute='entity_id')
+            | list }}
         {% else %}
-          None
+          []
         {% endif %}
-  - action: rest_command.plex_query_media_hubs
+      base_url: |-
+        {{ device_attr(plex_server, "configuration_url").rstrip('/web') }}
+  - action: rest_command.plex_query_media
     response_variable: media_response
     data:
+      base_url: "{{ base_url }}"
+      token: !input token
       media_query: "{{ media_query }}"
+
   - choose:
       - conditions:
           - condition: template
             value_template: >-
-              media_response['content']['MediaContainer']['Hub'] | length == 0
-              }}
+              {{ media_response['content']['MediaContainer']['Hub'] | length == 0 }}
         sequence:
           - set_conversation_response: Could not find {{ media_query }}
       - conditions:
           - condition: and
             conditions:
               - condition: template
-                value_template: "{{ player == '' or player is none }}"
+                value_template: "{{ players | length == 0 }}"
               - condition: template
-                value_template: "{{ area is not none and area != '' }}"
-              - condition: template
-                value_template: |
-                  {% set plex_entity_ids = area_entities(area)
-                     | select('search', '^media_player.plex_')
-                     | list %}
-                  {% set available_plex_entities = states.media_player
-                     | selectattr('entity_id', 'in', plex_entity_ids)
-                     | selectattr("state", "ne", "unavailable")
-                     | list %}
-                  {{ available_plex_entities | length == 0 }}
-        sequence:
-          - set_conversation_response: >-
-              No plex player available for area {{ area_name(trigger.device_id)
-              }}
-          - action: button.press
-            metadata: {}
-            data: {}
-            target:
-              entity_id: button.scan_clients_plexrack
-      - conditions:
-          - condition: and
-            conditions:
-              - condition: template
-                value_template: "{{ player == '' or player is none }}"
-              - condition: template
-                value_template: "{{ trigger.slots.player != '' and trigger.slots.player }}"
+                value_template: "{{ trigger.slots.player is not none }}"
         sequence:
           - set_conversation_response: Plex player {{ trigger.slots.player }} is not available
           - action: button.press
-            metadata: {}
-            data: {}
             target:
-              entity_id: button.scan_clients_plexrack
+              entity_id: !input scan_button
       - conditions:
           - condition: and
             conditions:
               - condition: template
-                value_template: "{{ player != '' and player is not none }}"
+                value_template: "{{ players | length == 0 }}"
               - condition: template
-                value_template: "{{ states(player) == 'unavailable' }}"
+                value_template: "{{ area is not none }}"
         sequence:
           - set_conversation_response: >-
-              Plex player {{ state_attr(player, 'friendly_name') }} is not
-              available
+              No plex player available for area {{ area_name(trigger.device_id) }}
+          - action: button.press
+            target:
+              entity_id: !input scan_button
       - conditions:
           - condition: and
             conditions:
               - condition: template
-                value_template: "{{ player is none }}"
-              - condition: template
-                value_template: "{{ area is none }}"
+                value_template: "{{ players | length == 0 }}"
         sequence:
           - set_conversation_response: No plex player provided
     default:
       - variables:
           media_content_type: >-
-            {{
-            media_response['content']['MediaContainer']['Hub'][0]['Metadata'][0]['type']
-            }}
+            {{ media_response['content']['MediaContainer']['Hub'][0]['Metadata'][0]['type'] }}
           media_content_library: >-
-            {{
-            media_response['content']['MediaContainer']['Hub'][0]['Metadata'][0]['librarySectionTitle']
-            }}
+            {{ media_response['content']['MediaContainer']['Hub'][0]['Metadata'][0]['librarySectionTitle'] }}
           media_content_name: >-
-            {{
-            media_response['content']['MediaContainer']['Hub'][0]['Metadata'][0]['title']
-            }}
+            {{ media_response['content']['MediaContainer']['Hub'][0]['Metadata'][0]['title'] }}
       - choose:
           - conditions:
               - condition: template
                 value_template: "{{ media_content_type == 'movie' }}"
             sequence:
-              - choose:
-                  - conditions:
-                      - condition: template
-                        value_template: "{{ player != '' }}"
-                    sequence:
-                      - action: media_player.play_media
-                        data_template:
-                          entity_id: "{{ player }}"
-                          media_content_id: >-
-                            { "library_name": "{{ media_content_library }}",
-                            "title": "{{ media_content_name }}" }
-                          media_content_type: "{{ media_content_type }}"
-                  - conditions:
-                      - condition: template
-                        value_template: "{{ area != '' }}"
-                    sequence:
-                      - action: media_player.play_media
-                        data_template:
-                          area_id: "{{ area }}"
-                          media_content_id: >-
-                            { "library_name": "{{ media_content_library }}",
-                            "title": "{{ media_content_name }}" }
-                          media_content_type: "{{ media_content_type }}"
+              - action: media_player.play_media
+                data_template:
+                  entity_id: "{{ player }}"
+                  media_content_id: >-
+                    {
+                      "library_name": "{{ media_content_library }}",
+                      "title": "{{ media_content_name }}"
+                    }
+                  media_content_type: "{{ media_content_type }}"
           - conditions:
               - condition: template
                 value_template: "{{ media_content_type == 'show' }}"
             sequence:
-              - choose:
-                  - conditions:
-                      - condition: template
-                        value_template: "{{ player != '' and player is not none }}"
-                    sequence:
-                      - action: media_player.play_media
-                        data_template:
-                          entity_id: "{{ player }}"
-                          media_content_id: >-
-                            { "library_name": "{{ media_content_library }}",
-                            "show_name": "{{ media_content_name }}", "shuffle":
-                            "{{ 1 if shuffle else 0 }}", "resume": "0" }
-                          media_content_type: "{{ media_content_type }}"
-                  - conditions:
-                      - condition: template
-                        value_template: "{{ area != '' }}"
-                    sequence:
-                      - action: media_player.play_media
-                        data_template:
-                          area_id: "{{ area }}"
-                          media_content_id: >-
-                            { "library_name": "{{ media_content_library }}",
-                            "show_name": "{{ media_content_name }}", "shuffle":
-                            "{{ 1 if shuffle else 0 }}", "resume": "0" }
-                          media_content_type: "{{ media_content_type }}"
+              - action: media_player.play_media
+                data_template:
+                  entity_id: "{{ players }}"
+                  media_content_id: >-
+                    {
+                      "library_name": "{{ media_content_library }}",
+                      "show_name": "{{ media_content_name }}",
+                      {% if trigger.slots.season %}
+                      "season_number": "{{ trigger.slots.season | int }}",
+                      {% endif %}
+                      {% if trigger.slots.episode %}
+                      "episode_number": "{{ trigger.slots.episode | int }}",
+                      {% endif %}
+                      "shuffle": "{{ 1 if shuffle else 0 }}",
+                      "resume": "0"
+                    }
+                  media_content_type: "{{ media_content_type }}"
           - conditions:
               - condition: template
                 value_template: "{{ media_content_type == 'playlist' }}"
             sequence:
-              - choose:
-                  - conditions:
-                      - condition: template
-                        value_template: "{{ player != '' and player is not none }}"
-                    sequence:
-                      - action: media_player.play_media
-                        data_template:
-                          entity_id: "{{ player }}"
-                          media_content_id: >-
-                            { "playlist_name": "{{ media_content_name }}",
-                            "shuffle": "{{ 1 if shuffle else 0 }}" }
-                          media_content_type: "{{ media_content_type }}"
-                  - conditions:
-                      - condition: template
-                        value_template: "{{ area != '' }}"
-                    sequence:
-                      - action: media_player.play_media
-                        data_template:
-                          area_id: "{{ area }}"
-                          media_content_id: >-
-                            { "playlist_name": "{{ media_content_name }}",
-                            "shuffle": "{{ 1 if shuffle else 0 }}" }
-                          media_content_type: "{{ media_content_type }}"
+              - action: media_player.play_media
+                data_template:
+                  entity_id: "{{ players }}"
+                  media_content_id: >-
+                    {
+                      "playlist_name": "{{ media_content_name }}",
+                      "shuffle": "{{ 1 if shuffle else 0 }}"
+                    }
+                  media_content_type: "{{ media_content_type }}"
 mode: single
