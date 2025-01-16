@@ -70,7 +70,7 @@ actions:
       - conditions:
           - condition: template
             value_template: >-
-              {{ media_response['content']['MediaContainer']['Hub'] | length == 0 }}
+              {{ media_response['content']['MediaContainer']['Hub'][0]['size'] == 0 }}
         sequence:
           - set_conversation_response: Could not find {{ media_query }}
       - conditions:
