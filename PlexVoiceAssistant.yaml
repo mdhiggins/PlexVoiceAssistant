@@ -127,7 +127,7 @@ actions:
             sequence:
               - action: media_player.play_media
                 data_template:
-                  entity_id: "{{ player }}"
+                  entity_id: "{{ players }}"
                   media_content_id: >-
                     {
                       "library_name": "{{ media_content_library }}",
