@@ -8,8 +8,6 @@ blueprint:
       description: Media players to monitor for state changes which will trigger a refresh of plex clients, use the parent media player (Apple TV, Android TV, Roku etc) not the Plex integration media player
       selector:
         entity:
-          exclude:
-              integration: plex
           domain: media_player
     scan_button:
       name: Scan Clients Button
