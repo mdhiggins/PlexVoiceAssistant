@@ -9,6 +9,7 @@ blueprint:
       selector:
         entity:
           domain: media_player
+          multiple: true
     scan_button:
       name: Scan Clients Button
       description: Button to scan for available Plex clients
