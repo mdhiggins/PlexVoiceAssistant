@@ -65,14 +65,21 @@ actions:
       base_url: "{{ base_url }}"
       token: !input token
       media_query: "{{ media_query }}"
-
+  - variables:
+      supported_hub_types: ['movie', 'show', 'playlist']
+      top_result: >
+        {{ media_response['content']['MediaContainer']['Hub'] 
+          | selectattr('type', 'in', supported_hub_types) 
+          | selectattr('size', 'gt', 0) 
+          | first
+          | default(none, true) }}
   - choose:
       - conditions:
           - condition: template
             value_template: >-
-              {{ media_response['content']['MediaContainer']['Hub'][0]['size'] == 0 }}
+              {{ top_result is none }}
         sequence:
-          - set_conversation_response: Could not find {{ media_query }}
+          - set_conversation_response: Could not find content for {{ media_query }}
       - conditions:
           - condition: and
             conditions:
@@ -108,11 +115,11 @@ actions:
     default:
       - variables:
           media_content_type: >-
-            {{ media_response['content']['MediaContainer']['Hub'][0]['Metadata'][0]['type'] }}
+            {{ top_result['Metadata'][0]['type'] }}
           media_content_library: >-
-            {{ media_response['content']['MediaContainer']['Hub'][0]['Metadata'][0]['librarySectionTitle'] }}
+            {{ top_result['Metadata'][0]['librarySectionTitle'] }}
           media_content_name: >-
-            {{ media_response['content']['MediaContainer']['Hub'][0]['Metadata'][0]['title'] }}
+            {{ top_result['Metadata'][0]['title'] }}
       - choose:
           - conditions:
               - condition: template
