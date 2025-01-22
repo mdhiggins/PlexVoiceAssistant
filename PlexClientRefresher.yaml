@@ -17,17 +17,18 @@ blueprint:
         entity:
           domain: button
           integration: plex
-
+    delay:
+      name: Scan Delay
+      description: Delay before triggering the scan
+      selector:
+        duration:
+      default: "00:00:05"
 
 triggers:
   - entity_id: !input media_players
     trigger: state
 actions:
-  - delay:
-      hours: 0
-      minutes: 0
-      seconds: 5
-      milliseconds: 0
+  - delay: !input delay
   - action: button.press
     metadata: {}
     data: {}
