@@ -1,0 +1,6 @@
+plex_query_media:
+  url: "{{ base_url.rstrip('/') }}/hubs/search/?query={{ media_query }}"
+  method: GET
+  headers:
+    X-Plex-Token: "{{ token }}"
+    Accept: "application/json"
