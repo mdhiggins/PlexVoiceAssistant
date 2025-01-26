@@ -12,7 +12,7 @@ blueprint:
           model: "Plex Media Server"
     token:
       name: Plex Token
-      description: Active Plex token for authetnication purposes
+      description: Active Plex token for authentication purposes
       default: ""
     scan_button:
       name: Scan Clients Button
