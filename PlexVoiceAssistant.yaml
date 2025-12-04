@@ -22,23 +22,16 @@ blueprint:
           domain: button
           integration: plex
 
-lists:
-  mediatype:
-    values:
-      - movie
-      - show
-      - playlist
-
 triggers:
   - trigger: conversation
     command:
-      - Play {mediatype} {media} [season {season} [episode {episode}]] [on [player] {player}]
-      - Start playing {mediatype} {media} [season {season} [episode {episode}]] [on [player] {player}]
+      - Play [(movie|show|playlist)] {media} [season {season} [episode {episode}]] [on [player] {player}]
+      - Start playing [(movie|show|playlist)]  {media} [season {season} [episode {episode}]] [on [player] {player}]
   - trigger: conversation
     command:
-      - Shuffle {mediatype} {media} [season {season} [episode {episode}]] [on [player] {player}]
-      - Play {mediatype} {media} [season {season} [episode {episode}]] in shuffle mode [on [player] {player}]
-      - Shuffle play {mediatype} {media} [season {season} [episode {episode}]] [on [player] {player}]
+      - Shuffle [(movie|show|playlist)]  {media} [season {season} [episode {episode}]] [on [player] {player}]
+      - Play [(movie|show|playlist)]  {media} [season {season} [episode {episode}]] in shuffle mode [on [player] {player}]
+      - Shuffle play [(movie|show|playlist)] {media} [season {season} [episode {episode}]] [on [player] {player}]
 conditions: []
 actions:
   - variables:
