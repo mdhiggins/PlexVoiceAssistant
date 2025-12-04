@@ -29,8 +29,8 @@ triggers:
       - Start playing [(movie|show|playlist)]  {media} [season {season} [episode {episode}]] [on [player] {player}]
   - trigger: conversation
     command:
-      - Shuffle [(movie|show|playlist)]  {media} [season {season} [episode {episode}]] [on [player] {player}]
-      - Play [(movie|show|playlist)]  {media} [season {season} [episode {episode}]] in shuffle mode [on [player] {player}]
+      - Shuffle [(movie|show|playlist)] {media} [season {season} [episode {episode}]] [on [player] {player}]
+      - Play [(movie|show|playlist)] {media} [season {season} [episode {episode}]] in shuffle mode [on [player] {player}]
       - Shuffle play [(movie|show|playlist)] {media} [season {season} [episode {episode}]] [on [player] {player}]
 conditions: []
 actions:
