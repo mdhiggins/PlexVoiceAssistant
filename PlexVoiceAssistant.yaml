@@ -10,6 +10,10 @@ blueprint:
         device:
           manufacturer: "Plex"
           model: "Plex Media Server"
+    token:
+      name: Plex Token
+      description: Active Plex token for authentication purposes
+      default: ""
     scan_button:
       name: Scan Clients Button
       description: Button to scan for available Plex clients
@@ -59,7 +63,8 @@ actions:
     response_variable: media_response
     data:
       base_url: "{{ base_url }}"
-      token: "{{ state_attr(config_entry_id(device_id(!input plex_server)), 'token') }}"
+      token: !input token
+      # token: "{{ state_attr(config_entry_id(device_id(!input plex_server)), 'token') }}"
       media_query: "{{ media_query }}"
   - variables:
       supported_hub_types: >-
