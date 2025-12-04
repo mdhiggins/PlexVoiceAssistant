@@ -59,8 +59,7 @@ actions:
     response_variable: media_response
     data:
       base_url: "{{ base_url }}"
-      token: >-
-        {{ state_attr(config_entry_id(device_id(!input plex_server)), 'token') }}
+      token: "{{ state_attr(config_entry_id(device_id(!input plex_server)), 'token') }}"
       media_query: "{{ media_query }}"
   - variables:
       supported_hub_types: >-
