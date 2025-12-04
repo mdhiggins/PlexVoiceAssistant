@@ -10,10 +10,6 @@ blueprint:
         device:
           manufacturer: "Plex"
           model: "Plex Media Server"
-    token:
-      name: Plex Token
-      description: Active Plex token for authentication purposes
-      default: ""
     scan_button:
       name: Scan Clients Button
       description: Button to scan for available Plex clients
@@ -21,17 +17,27 @@ blueprint:
         entity:
           domain: button
           integration: plex
+  conversation:
+      slots:
+        mediatype:
+          values:
+            movie:
+              aliases: [movies, film, films, feature]
+            tv:
+              aliases: [show, shows, series, television, tv show, tv shows]
+            playlist:
+              aliases: [playlists]
 
 triggers:
   - trigger: conversation
     command:
-      - Play {media} [season {season} [episode {episode}]] [on [player] {player}]
-      - Start playing {media} [season {season} [episode {episode}]] [on [player] {player}]
+      - Play {mediatype} {media} [season {season} [episode {episode}]] [on [player] {player}]
+      - Start playing {mediatype} {media} [season {season} [episode {episode}]] [on [player] {player}]
   - trigger: conversation
     command:
-      - Shuffle {media} [season {season} [episode {episode}]] [on [player] {player}]
-      - Play {media} [season {season} [episode {episode}]] in shuffle mode [on [player] {player}]
-      - Shuffle play {media} [season {season} [episode {episode}]] [on [player] {player}]
+      - Shuffle {mediatype} {media} [season {season} [episode {episode}]] [on [player] {player}]
+      - Play {mediatype} {media} [season {season} [episode {episode}]] in shuffle mode [on [player] {player}]
+      - Shuffle play {mediatype} {media} [season {season} [episode {episode}]] [on [player] {player}]
 conditions: []
 actions:
   - variables:
@@ -63,10 +69,21 @@ actions:
     response_variable: media_response
     data:
       base_url: "{{ base_url }}"
-      token: !input token
+      token: >-
+        {{ state_attr(config_entry_id(device_id(!input plex_server)), 'token') }}
       media_query: "{{ media_query }}"
   - variables:
-      supported_hub_types: ['movie', 'show', 'playlist']
+      supported_hub_types: >-
+        {% set mapping = {
+          'movie': ['movie'],
+          'tv': ['show'],
+          'playlist': ['playlist']
+        } %}
+        {% if trigger.slots.mediatype and trigger.slots.mediatype in mapping %}
+          {{ mapping[trigger.slots.mediatype] }}
+        {% else %}
+          ['movie', 'show', 'playlist']
+        {% endif %}
       top_result: >
         {{ media_response['content']['MediaContainer']['Hub'] 
           | selectattr('type', 'in', supported_hub_types) 
