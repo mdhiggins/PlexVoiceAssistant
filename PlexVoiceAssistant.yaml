@@ -17,27 +17,17 @@ blueprint:
         entity:
           domain: button
           integration: plex
-  conversation:
-      slots:
-        mediatype:
-          values:
-            movie:
-              aliases: [movies, film, films, feature]
-            tv:
-              aliases: [show, shows, series, television, tv show, tv shows]
-            playlist:
-              aliases: [playlists]
 
 triggers:
   - trigger: conversation
     command:
-      - Play {mediatype} {media} [season {season} [episode {episode}]] [on [player] {player}]
-      - Start playing {mediatype} {media} [season {season} [episode {episode}]] [on [player] {player}]
+      - Play {mediatype:movie|show|playlist} {media} [season {season} [episode {episode}]] [on [player] {player}]
+      - Start playing {mediatype:movie|show|playlist} {media} [season {season} [episode {episode}]] [on [player] {player}]
   - trigger: conversation
     command:
-      - Shuffle {mediatype} {media} [season {season} [episode {episode}]] [on [player] {player}]
-      - Play {mediatype} {media} [season {season} [episode {episode}]] in shuffle mode [on [player] {player}]
-      - Shuffle play {mediatype} {media} [season {season} [episode {episode}]] [on [player] {player}]
+      - Shuffle {mediatype:movie|show|playlist} {media} [season {season} [episode {episode}]] [on [player] {player}]
+      - Play {mediatype:movie|show|playlist} {media} [season {season} [episode {episode}]] in shuffle mode [on [player] {player}]
+      - Shuffle play {mediatype:movie|show|playlist} {media} [season {season} [episode {episode}]] [on [player] {player}]
 conditions: []
 actions:
   - variables:
@@ -76,7 +66,7 @@ actions:
       supported_hub_types: >-
         {% set mapping = {
           'movie': ['movie'],
-          'tv': ['show'],
+          'show': ['show'],
           'playlist': ['playlist']
         } %}
         {% if trigger.slots.mediatype and trigger.slots.mediatype in mapping %}
