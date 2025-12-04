@@ -68,17 +68,17 @@ actions:
       media_query: "{{ media_query }}"
   - variables:
       supported_hub_types: >-
-        {% set mapping = {
-          'movie': ['movie'],
-          'show': ['show'],
-          'playlist': ['playlist']
-        } %}
-        {% if trigger.slots.mediatype and trigger.slots.mediatype in mapping %}
-          {{ mapping[trigger.slots.mediatype] }}
+        {% set text = trigger.sentence | lower %}
+        {% if 'movie' in text %}
+          ['movie']
+        {% elif 'show' in text %}
+          ['show']
+        {% elif 'playlist' in text %}
+          ['playlist']
         {% else %}
           ['movie', 'show', 'playlist']
         {% endif %}
-      top_result: >
+      top_result: >-
         {{ media_response['content']['MediaContainer']['Hub'] 
           | selectattr('type', 'in', supported_hub_types) 
           | selectattr('size', 'gt', 0) 
