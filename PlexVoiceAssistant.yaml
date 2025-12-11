@@ -44,14 +44,12 @@ actions:
           {{ states.media_player
             | selectattr('entity_id', 'in', integration_entities('plex'))
             | selectattr('attributes.friendly_name', 'search', trigger.slots.player, ignorecase=True)
-            | selectattr('state', 'ne', 'unavailable')
             | map(attribute='entity_id')
             | list }}
         {% elif area %}
           {{ states.media_player
             | selectattr('entity_id', 'in', area_entities(area))
             | selectattr('entity_id', 'in', integration_entities('plex'))
-            | selectattr('state', 'ne', 'unavailable')
             | map(attribute='entity_id')
             | list }}
         {% else %}
