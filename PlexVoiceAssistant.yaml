@@ -274,6 +274,7 @@ actions:
 
       - set_conversation_response: >-
           {% if shuffle %}Shuffling{% else %}Playing{% endif %} "{{ media_query }}"
+          {% if trigger.slots.season is defined %} season {{ trigger.slots.season }}{% if trigger.slots.episode is defined %} episode {{ trigger.slots.episode }}{% endif %}{% endif %}
           {% if available_clients > 1 %} on {{ available_clients }} players{% endif %}.
 
 mode: single
