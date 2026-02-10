@@ -113,15 +113,19 @@ actions:
 
   - variables:
       supported_hub_types: >-
-        {% set text = trigger.sentence | lower %}
-        {% if 'movie' in text %}
-          ['movie']
-        {% elif 'show' in text %}
+        {% if trigger.slots.season is defined or trigger.slots.episode is defined %}
           ['show']
-        {% elif 'playlist' in text %}
-          ['playlist']
         {% else %}
-          ['movie', 'show', 'playlist']
+          {% set text = trigger.sentence | lower %}
+          {% if 'movie' in text %}
+            ['movie']
+          {% elif 'show' in text %}
+            ['show']
+          {% elif 'playlist' in text %}
+            ['playlist']
+          {% else %}
+            ['movie', 'show', 'playlist']
+          {% endif %}
         {% endif %}
       top_result: >-
         {{ media_response['content']['MediaContainer']['Hub']
