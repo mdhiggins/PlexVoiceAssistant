@@ -33,7 +33,7 @@ If your Plex server uses self-signed certificates or you access it via local IP 
 Import via URL or copy the blueprint file to your `blueprints/automation` directory:
 
 ```
-https://github.com/yourusername/PlexVoiceAssistant/blob/main/PlexVoiceAssistant.yaml
+https://github.com/mdhiggins/PlexVoiceAssistant/blob/main/PlexVoiceAssistant.yaml
 ```
 
 ### 3. Create Automation
