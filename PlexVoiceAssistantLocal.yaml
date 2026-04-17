@@ -91,15 +91,19 @@ actions:
       path: "/hubs/search/?query={{ media_query | urlencode }}"
   - variables:
       supported_hub_types: >-
-        {% set text = trigger.sentence | lower %}
-        {% if 'movie' in text %}
-          ['movie']
-        {% elif 'show' in text %}
+        {% if trigger.slots.season is defined or trigger.slots.episode is defined %}
           ['show']
-        {% elif 'playlist' in text %}
-          ['playlist']
         {% else %}
-          ['movie', 'show', 'playlist']
+          {% set text = trigger.sentence | lower %}
+          {% if 'movie' in text %}
+            ['movie']
+          {% elif 'show' in text %}
+            ['show']
+          {% elif 'playlist' in text %}
+            ['playlist']
+          {% else %}
+            ['movie', 'show', 'playlist']
+          {% endif %}
         {% endif %}
       top_result: >-
         {{ media_response['content']['MediaContainer']['Hub'] 
@@ -207,5 +211,6 @@ actions:
                   media_content_type: "{{ media_content_type }}"
       - set_conversation_response: >-
           {% if shuffle %}Shuffling{% else %}Playing{% endif %} "{{ media_query }}"
+          {% if trigger.slots.season is defined %} season {{ trigger.slots.season }}{% if trigger.slots.episode is defined %} episode {{ trigger.slots.episode }}{% endif %}{% endif %}
           {% if players | length > 1 %} on {{ players | length }} players{% endif %}.
 mode: single
