@@ -31,13 +31,13 @@ blueprint:
 triggers:
   - trigger: conversation
     command:
-      - Play [(movie|show|playlist)] {media} [season {season} [episode {episode}]] [on [player] {player}]
-      - Start playing [(movie|show|playlist)]  {media} [season {season} [episode {episode}]] [on [player] {player}]
+      - Play [(movie|show|playlist|track|artist|album)] {media} [season {season} [episode {episode}]] [on [player] {player}]
+      - Start playing [(movie|show|playlist|track|artist|album)]  {media} [season {season} [episode {episode}]] [on [player] {player}]
   - trigger: conversation
     command:
-      - Shuffle [(movie|show|playlist)] {media} [season {season} [episode {episode}]] [on [player] {player}]
-      - Play [(movie|show|playlist)] {media} [season {season} [episode {episode}]] in shuffle mode [on [player] {player}]
-      - Shuffle play [(movie|show|playlist)] {media} [season {season} [episode {episode}]] [on [player] {player}]
+      - Shuffle [(movie|show|playlist|track|artist|album)] {media} [season {season} [episode {episode}]] [on [player] {player}]
+      - Play [(movie|show|playlist|track|artist|album)] {media} [season {season} [episode {episode}]] in shuffle mode [on [player] {player}]
+      - Shuffle play [(movie|show|playlist|track|artist|album)] {media} [season {season} [episode {episode}]] [on [player] {player}]
 conditions: []
 actions:
   - variables:
@@ -101,8 +101,14 @@ actions:
             ['show']
           {% elif 'playlist' in text %}
             ['playlist']
+          {% elif 'track' in text or 'song' in text %}
+            ['track']
+          {% elif 'artist' in text %}
+            ['artist']
+          {% elif 'album' in text %}
+            ['album']
           {% else %}
-            ['movie', 'show', 'playlist']
+            ['movie', 'show', 'playlist', 'track', 'artist', 'album']
           {% endif %}
         {% endif %}
       top_result: >-
@@ -206,6 +212,21 @@ actions:
                   media_content_id: >-
                     {
                       "playlist_name": "{{ media_content_name }}",
+                      "shuffle": "{{ 1 if shuffle else 0 }}"
+                    }
+                  media_content_type: "{{ media_content_type }}"
+          - conditions:
+              - condition: template
+                value_template: "{{ media_content_type in ['track', 'artist', 'album'] }}"
+            sequence:
+              - action: media_player.play_media
+                continue_on_error: true
+                data_template:
+                  entity_id: "{{ players }}"
+                  media_content_id: >
+                    {
+                      "library_name": "{{ media_content_library }}",
+                      "title": "{{ media_content_name }}",
                       "shuffle": "{{ 1 if shuffle else 0 }}"
                     }
                   media_content_type: "{{ media_content_type }}"

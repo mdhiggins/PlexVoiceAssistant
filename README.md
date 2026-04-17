@@ -4,7 +4,7 @@ Home Assistant blueprints for controlling Plex clients via Assist voice commands
 
 ## Overview
 
-These blueprints enable voice control of Plex playback using Home Assistant's conversation agent. They support playing movies, TV shows (with season/episode selection), and playlists. Will use area aware player selection if a player is not specified.
+These blueprints enable voice control of Plex playback using Home Assistant's conversation agent. They support playing movies, TV shows, music (tracks, artists, albums), and playlists. Will use area aware player selection if a player is not specified.
 
 Two implementations are provided:
 - **PlexVoiceAssistant.yaml**: Uses Plex.tv API for client discovery
@@ -50,7 +50,7 @@ Create a new automation from the blueprint and configure:
 
 ```
 Play <media> [on <player>]
-Play <movie/show/playlist> <name> [season <number>] [episode <number>] [on <player>]
+Play <movie/show/track/artist/album> <name> [season <number>] [episode <number>] [on <player>]
 Shuffle <media>
 ```
 
@@ -63,6 +63,10 @@ Play The Office season 5 episode 14
 Play The Office on Living Room TV
 Shuffle Always Sunny
 Play playlist Favorites
+Play track Blinding Lights
+Play artist The Weeknd
+Play album Starboy
+Shuffle album Dark Side of the Moon
 ```
 
 ### Player Targeting
@@ -74,7 +78,17 @@ Players can be targeted two ways:
 
 ## Technical Details
 
-### Client Discovery
+### Media Types Supported
+
+The blueprint supports the following Plex media hub types:
+- **movie**: Movies and films
+- **show**: Television series (with season and episode selection)
+- **track**: Individual music tracks/songs
+- **artist**: Music artists (queues all tracks by the artist)
+- **album**: Music albums (queues all tracks in the album)
+- **playlist**: Both video and music playlists
+
+Based on the selected media type, the blueprint automatically sets the appropriate queue type (`video` for movies/shows, `music` for audio content).
 
 The main blueprint queries `/api/v2/resources` from Plex.tv to get current client connection information. For each targeted client:
 

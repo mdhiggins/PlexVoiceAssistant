@@ -25,13 +25,13 @@ blueprint:
 triggers:
   - trigger: conversation
     command:
-      - Play [(movie|show|playlist)] {media} [season {season} [episode {episode}]] [on [player] {player}]
-      - Start playing [(movie|show|playlist)] {media} [season {season} [episode {episode}]] [on [player] {player}]
+      - Play [(movie|show|playlist|track|artist|album)] {media} [season {season} [episode {episode}]] [on [player] {player}]
+      - Start playing [(movie|show|playlist|track|artist|album)] {media} [season {season} [episode {episode}]] [on [player] {player}]
   - trigger: conversation
     command:
-      - Shuffle [(movie|show|playlist)] {media} [season {season} [episode {episode}]] [on [player] {player}]
-      - Play [(movie|show|playlist)] {media} [season {season} [episode {episode}]] in shuffle mode [on [player] {player}]
-      - Shuffle play [(movie|show|playlist)] {media} [season {season} [episode {episode}]] [on [player] {player}]
+      - Shuffle [(movie|show|playlist|track|artist|album)] {media} [season {season} [episode {episode}]] [on [player] {player}]
+      - Play [(movie|show|playlist|track|artist|album)] {media} [season {season} [episode {episode}]] in shuffle mode [on [player] {player}]
+      - Shuffle play [(movie|show|playlist|track|artist|album)] {media} [season {season} [episode {episode}]] [on [player] {player}]
 
 conditions: []
 
@@ -123,8 +123,14 @@ actions:
             ['show']
           {% elif 'playlist' in text %}
             ['playlist']
+          {% elif 'track' in text or 'song' in text %}
+            ['track']
+          {% elif 'artist' in text %}
+            ['artist']
+          {% elif 'album' in text %}
+            ['album']
           {% else %}
-            ['movie', 'show', 'playlist']
+            ['movie', 'show', 'playlist', 'track', 'artist', 'album']
           {% endif %}
         {% endif %}
       top_result: >-
@@ -243,12 +249,18 @@ actions:
                       item_key: "/library/metadata/{{ season_key }}"
 
       - variables:
+          queue_type: >-
+            {% if media_type in ['track', 'artist', 'album'] %}
+              music
+            {% else %}
+              video
+            {% endif %}
           uri: >-
             {% if media_type != 'playlist' %}
               server://{{ server_machine_id }}/com.plexapp.plugins.library{{ item_key }}
             {% endif %}
           queue_params: >-
-            type=video&shuffle={{ 1 if shuffle else 0 }}&continuous=1{% if media_type != 'playlist' %}&uri={{ uri | urlencode }}{% else %}&playlistID={{ rating_key }}{% endif %}
+            type={{ queue_type }}&shuffle={{ 1 if shuffle else 0 }}&continuous=1{% if media_type != 'playlist' %}&uri={{ uri | urlencode }}{% else %}&playlistID={{ rating_key }}{% endif %}
 
       - action: rest_command.plex_api_post
         response_variable: queue_response
@@ -274,7 +286,7 @@ actions:
                 token: !input token
                 target_client_id: "{{ repeat.item.client_id }}"
                 path: >-
-                  /player/playback/playMedia?key={{ playqueue_key | urlencode }}&offset=0&machineIdentifier={{ server_machine_id }}&address={{ server_playback_address }}&port={{ server_port }}&protocol={{ server_playback_protocol }}&providerIdentifier=com.plexapp.plugins.library&containerKey={{ ('/playQueues/' ~ playqueue_id ~ '?window=100&own=1') | urlencode }}&type=video&commandID={{ command_id }}&token={{ plex_token }}
+                  /player/playback/playMedia?key={{ playqueue_key | urlencode }}&offset=0&machineIdentifier={{ server_machine_id }}&address={{ server_playback_address }}&port={{ server_port }}&protocol={{ server_playback_protocol }}&providerIdentifier=com.plexapp.plugins.library&containerKey={{ ('/playQueues/' ~ playqueue_id ~ '?window=100&own=1') | urlencode }}&type={{ queue_type }}&commandID={{ command_id }}&token={{ plex_token }}
 
       - set_conversation_response: >-
           {% if shuffle %}Shuffling{% else %}Playing{% endif %} "{{ media_query }}"
