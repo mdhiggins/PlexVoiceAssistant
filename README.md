@@ -41,7 +41,7 @@ https://github.com/mdhiggins/PlexVoiceAssistant/blob/main/PlexVoiceAssistant.yam
 Create a new automation from the blueprint and configure:
 
 - **Plex Server**: Select your Plex Media Server device
-- **Plex Token**: Your Plex authentication token (get from https://www.plex.tv/claim/)
+- **Plex Token**: Your Plex authentication token ([how-to](https://support.plex.tv/articles/204059436-finding-an-authentication-token-x-plex-token/))
 - **Scan Clients Button**: Select the "Scan for clients" button entity from your Plex integration
 
 ## Usage
